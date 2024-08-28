@@ -1,0 +1,9 @@
+                precision    recall  f1-score   support
+
+        Center       1.00      1.00      1.00         8
+ Saccades Left       0.83      0.83      0.83         6
+Saccades Right       0.75      0.75      0.75         4
+
+      accuracy                           0.89        18
+     macro avg       0.86      0.86      0.86        18
+  weighted avg       0.89      0.89      0.89        18
