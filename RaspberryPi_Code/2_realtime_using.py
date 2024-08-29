@@ -201,7 +201,7 @@ def control_led(index_class):
 if __name__ == "__main__":
     tprint("BCI PI v 1.0", font="big")
     tprint("EYE State", font="small")
-    main
+    main()
     # close LED
     GPIO.output(LED1_PIN, GPIO.LOW)
     GPIO.output(LED2_PIN, GPIO.LOW)
