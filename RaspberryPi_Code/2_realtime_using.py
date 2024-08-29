@@ -15,9 +15,10 @@ import RPi.GPIO as GPIO
 # model
 import tensorflow as tf
 
-SUBJECT = "26"
+SUBJECT = "24"
 # MODEL = tf.keras.models.load_model("./model_results_EYE_1/eeg_classification_model.h5")
-MODEL = tf.keras.models.load_model(f"./S{SUBJECT}/model_results_S{SUBJECT}/eeg_model.h5")
+# MODEL = tf.keras.models.load_model(f"./S{SUBJECT}/model_results_S{SUBJECT}/eeg_model.h5")
+MODEL = tf.keras.models.load_model(f"./DataSet/S{SUBJECT}/model_results_S{SUBJECT}/eeg_model.h5")
 
 # stop signal
 import signal
@@ -35,16 +36,22 @@ seq_label = ["Center", "Saccades Left", "Saccades Right"]
 
 # ตั้งค่า GPIO pin
 BUZZER_PIN = 24
-LED1_PIN = 33 # Left
-LED2_PIN = 35 # Center
-LED3_PIN = 37 # Right
+LED1_PIN = 13 # Left
+LED2_PIN = 19 # Center
+LED3_PIN = 26 # Right
 
 
 # กำหนดโหมดของการใช้ GPIO
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
+GPIO.setup(LED1_PIN, GPIO.OUT)
+GPIO.setup(LED2_PIN, GPIO.OUT)
+GPIO.setup(LED3_PIN, GPIO.OUT)
 
 def main():
+    GPIO.output(LED1_PIN, GPIO.HIGH)
+    GPIO.output(LED2_PIN, GPIO.HIGH)
+    GPIO.output(LED3_PIN, GPIO.HIGH)
     while True:
         choice = input(f"""
         ==> Menu
@@ -194,5 +201,9 @@ def control_led(index_class):
 if __name__ == "__main__":
     tprint("BCI PI v 1.0", font="big")
     tprint("EYE State", font="small")
-    main()
+    main
+    # close LED
+    GPIO.output(LED1_PIN, GPIO.LOW)
+    GPIO.output(LED2_PIN, GPIO.LOW)
+    GPIO.output(LED3_PIN, GPIO.LOW)
     GPIO.cleanup()
