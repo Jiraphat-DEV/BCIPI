@@ -19,9 +19,9 @@ seq_label = ["Center", "Saccades Left", "Saccades Right"]
 
 # ตั้งค่า GPIO pin
 BUZZER_PIN = 24
-LED1_PIN = 13 # Left
+LED1_PIN = 26 # Left
 LED2_PIN = 19 # Center
-LED3_PIN = 26 # Right
+LED3_PIN = 13 # Right
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
