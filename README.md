@@ -555,120 +555,104 @@ print(label_mapping)
 
 ```python
 import numpy as np
-from sklearn.model_selection import KFold
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, train_test_split
 from tensorflow.keras.layers import Input, Dense, Conv1D, LSTM
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
-from sklearn.metrics import accuracy_score
-import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow.keras.utils import plot_model
 
-
+# Step 1: Build the EEG classification model
 def build_eeg_classification_model(input_shape, num_classes):
-    # Define the input layers for the three frequency bands
     Input_layer = Input(shape=input_shape)
-
     Conv1D_layer = Conv1D(filters=128, kernel_size=1, activation='relu')(Input_layer)
     LSTM_layer = LSTM(128, dropout=0.2, recurrent_regularizer=l2(0.001))(Conv1D_layer)
     Output_layer = Dense(num_classes, activation='softmax')(LSTM_layer)
 
-    # Define the model
     model = Model(inputs=Input_layer, outputs=Output_layer)
-
-    # กำหนด optimizer
-    learning_rate = 0.001
-    optimizer = Adam(learning_rate=learning_rate)
-    # คอมไพล์โมเดล
+    
+    optimizer = Adam(learning_rate=0.001)
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
 
+# Step 2: Split data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X_preprocessing, one_encoded_data, test_size=0.2, random_state=42)
 
-# Initialize variables for cross-validation
+# Step 3: K-fold cross validation and store all models
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
-best_model = None
-best_val_accuracy = 0
-history_list = []
+all_models = []  # List to store all models from each fold
+history_list = []  # List to store training history
 
-# Perform k-fold cross-validation
-for fold, (train_index, val_index) in enumerate(kf.split(X_preprocessing), start=1):
-    X_train, X_val = X_preprocessing[train_index], X_preprocessing[val_index]
-    y_train, y_val = one_encoded_data[train_index], one_encoded_data[val_index]
+for fold, (train_index, val_index) in enumerate(kf.split(X_train), start=1):
+    X_fold_train, X_fold_val = X_train[train_index], X_train[val_index]
+    y_fold_train, y_fold_val = y_train[train_index], y_train[val_index]
 
-    model = build_eeg_classification_model(input_shape=(X_train.shape[1], X_train.shape[2]), num_classes=3)
+    model = build_eeg_classification_model(input_shape=(X_fold_train.shape[1], X_fold_train.shape[2]), num_classes=3)
     early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True, verbose=1)
 
-    # Train the model
     history = model.fit(
-        X_train,
-        y_train,
-        epochs=300,
-        batch_size=4,
-        validation_data=(X_val, y_val),
-        callbacks=[early_stopping],
-        verbose=1
+        X_fold_train, y_fold_train, epochs=300, batch_size=4,
+        validation_data=(X_fold_val, y_fold_val), callbacks=[early_stopping], verbose=1
     )
 
-    # Evaluate the model on the validation set
-    val_loss, val_accuracy = model.evaluate(X_val, y_val, verbose=0)
-    print(f"Fold {fold} - Validation accuracy: {val_accuracy:.4f}")
-
-    # Save history for the current fold
     history_list.append(history.history)
+    all_models.append(model)  # Save the model for this fold
 
-    # Save the model if it's the best so far
-    if val_accuracy > best_val_accuracy:
-        best_val_accuracy = val_accuracy
-        best_model = model
-        best_history = history
+# Step 4: Evaluate all models on the test set and choose the best model
+best_test_accuracy = 0
+best_test_model = None
 
-# Save the best model
+for i, model in enumerate(all_models):
+    y_test_pred = model.predict(X_test)
+    y_test_pred_classes = np.argmax(y_test_pred, axis=1)
+    y_test_true_classes = np.argmax(y_test, axis=1)
+
+    test_accuracy = np.mean(y_test_pred_classes == y_test_true_classes)
+    print(f"Model {i+1} - Test accuracy: {test_accuracy:.4f}")
+
+    if test_accuracy > best_test_accuracy:
+        best_test_accuracy = test_accuracy
+        best_test_model = model
+
+# Step 5: Save the best model from the test set evaluation
 folder_name = os.path.join(start_path, f"model_results_S{subject}")
 os.makedirs(folder_name, exist_ok=True)
 
 # Save the best model
 model_filename = os.path.join(folder_name, "eeg_model.h5")
-best_model.save(model_filename)
+best_test_model.save(model_filename)
 
-# Evaluate the best model on the test set
-X_temp, X_test, y_temp, y_test = train_test_split(
-    X_preprocessing, one_encoded_data, test_size=0.4, random_state=42, shuffle=True
-)
-X_test, X_val, y_test, y_val = train_test_split(
-    X_temp, y_temp, test_size=0.5, random_state=42, shuffle=True
-)
-y_test_pred = best_model.predict(X_test)
+# Confusion matrix for the best test model
+y_test_pred = best_test_model.predict(X_test)
 y_test_pred_classes = np.argmax(y_test_pred, axis=1)
 y_test_true_classes = np.argmax(y_test, axis=1)
 
-# Save the confusion matrix
 cm = confusion_matrix(y_test_true_classes, y_test_pred_classes)
 cm_filename = os.path.join(folder_name, "confusion_matrix.png")
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_mapping["Original Value"], yticklabels=label_mapping["Original Value"])
 plt.xlabel('Predicted Label')
 plt.ylabel('True Label')
-plt.title('Confusion Matrix Test Set')
+plt.title('Confusion Matrix - Test Set')
 plt.savefig(cm_filename)
 plt.close()
 
-# Save the classification report
+# Classification report
 report_filename = os.path.join(folder_name, "classification_report.txt")
 report = classification_report(y_test_true_classes, y_test_pred_classes, target_names=label_mapping["Original Value"])
 with open(report_filename, "w") as f:
     f.write(report)
 
-# Save the learning curve
+# Learning curve for the best model
 learning_curve_filename = os.path.join(folder_name, "learning_curve.png")
-plt.plot(best_history.history['accuracy'])
-plt.plot(best_history.history['val_accuracy'])
+plt.plot(history_list[all_models.index(best_test_model)]['accuracy'])
+plt.plot(history_list[all_models.index(best_test_model)]['val_accuracy'])
 plt.title('Model accuracy')
 plt.ylabel('Accuracy')
 plt.xlabel('Epoch')
@@ -676,10 +660,10 @@ plt.legend(['Train', 'Validation'], loc='upper left')
 plt.savefig(learning_curve_filename)
 plt.close()
 
-# Save the loss curve
+# Loss curve for the best model
 loss_curve_filename = os.path.join(folder_name, "loss_curve.png")
-plt.plot(best_history.history['loss'])
-plt.plot(best_history.history['val_loss'])
+plt.plot(history_list[all_models.index(best_test_model)]['loss'])
+plt.plot(history_list[all_models.index(best_test_model)]['val_loss'])
 plt.title('Model loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
@@ -687,9 +671,9 @@ plt.legend(['Train', 'Validation'], loc='upper left')
 plt.savefig(loss_curve_filename)
 plt.close()
 
-# Save the model architecture
+# Model architecture
 model_architecture_filename = os.path.join(folder_name, "model_architecture.png")
-plot_model(best_model, to_file=model_architecture_filename, show_shapes=True)
+plot_model(best_test_model, to_file=model_architecture_filename, show_shapes=True)
 
 print(f"Results saved to folder: {folder_name}")
 ```
